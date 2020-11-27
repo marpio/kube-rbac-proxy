@@ -143,13 +143,34 @@ func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http
 	allAttrs := []authorizer.Attributes{}
 
 	if n.authzConfig.ResourceAttributes != nil {
-		if n.authzConfig.Rewrites != nil && n.authzConfig.Rewrites.ByQueryParameter != nil && n.authzConfig.Rewrites.ByQueryParameter.Name != "" {
-			params, ok := r.URL.Query()[n.authzConfig.Rewrites.ByQueryParameter.Name]
-			if !ok {
-				return nil
-			}
+		if n.authzConfig.Rewrites != nil {
+			if n.authzConfig.Rewrites.ByQueryParameter != nil && n.authzConfig.Rewrites.ByQueryParameter.Name != "" {
+				params, ok := r.URL.Query()[n.authzConfig.Rewrites.ByQueryParameter.Name]
+				if !ok {
+					return nil
+				}
 
-			for _, param := range params {
+				for _, param := range params {
+					attrs := authorizer.AttributesRecord{
+						User:            u,
+						Verb:            apiVerb,
+						Namespace:       templateWithValue(n.authzConfig.ResourceAttributes.Namespace, param),
+						APIGroup:        templateWithValue(n.authzConfig.ResourceAttributes.APIGroup, param),
+						APIVersion:      templateWithValue(n.authzConfig.ResourceAttributes.APIVersion, param),
+						Resource:        templateWithValue(n.authzConfig.ResourceAttributes.Resource, param),
+						Subresource:     templateWithValue(n.authzConfig.ResourceAttributes.Subresource, param),
+						Name:            templateWithValue(n.authzConfig.ResourceAttributes.Name, param),
+						ResourceRequest: true,
+					}
+					allAttrs = append(allAttrs, attrs)
+				}
+			}
+			if n.authzConfig.Rewrites.ByHTTPHeader != nil && n.authzConfig.Rewrites.ByHTTPHeader.Name != "" {
+				param := r.Header.Get(n.authzConfig.Rewrites.ByHTTPHeader.Name)
+				if param == "" {
+					return nil
+				}
+
 				attrs := authorizer.AttributesRecord{
 					User:            u,
 					Verb:            apiVerb,
