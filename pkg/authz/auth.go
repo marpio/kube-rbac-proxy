@@ -25,6 +25,15 @@ import (
 	authorizationclient "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
 
+const (
+	Namespace   string = "namespace"
+	ApiGroup           = "apiGroup"
+	APIVersion         = "apiVersion"
+	Resource           = "resource"
+	Subresource        = "subresource"
+	Name               = "name"
+)
+
 // Config holds configuration enabling request authorization
 type Config struct {
 	Rewrites               *SubjectAccessReviewRewrites `json:"rewrites,omitempty"`
@@ -42,13 +51,27 @@ type SubjectAccessReviewRewrites struct {
 // QueryParameterRewriteConfig describes which HTTP URL query parameter is to
 // be used to rewrite a SubjectAccessReview on a given request.
 type QueryParameterRewriteConfig struct {
-	Name string `json:"name,omitempty"`
+	Name              string   `json:"name,omitempty"`
+	RewriteTargets    []string `json:"rewriteTargets,omitempty"`
+	rewriteTargetsSet map[string]struct{}
+}
+
+// GetRewriteTargetsSet returns RewriteTargets passed in Config as a Set
+func (c *QueryParameterRewriteConfig) GetRewriteTargetsSet() map[string]struct{} {
+	return c.rewriteTargetsSet
 }
 
 // HTTPHeaderRewriteConfig describes which HTTP header is to
 // be used to rewrite a SubjectAccessReview on a given request.
 type HTTPHeaderRewriteConfig struct {
-	Name string `json:"name,omitempty"`
+	Name              string   `json:"name,omitempty"`
+	RewriteTargets    []string `json:"rewriteTargets,omitempty"`
+	rewriteTargetsSet map[string]struct{}
+}
+
+// GetRewriteTargetsSet returns RewriteTargets passed in Config as a Set
+func (c *HTTPHeaderRewriteConfig) GetRewriteTargetsSet() map[string]struct{} {
+	return c.rewriteTargetsSet
 }
 
 // ResourceAttributes describes attributes available for resource request authorization
@@ -59,6 +82,31 @@ type ResourceAttributes struct {
 	Resource    string `json:"resource,omitempty"`
 	Subresource string `json:"subresource,omitempty"`
 	Name        string `json:"name,omitempty"`
+}
+
+// InitConfig sets default config values
+func InitConfig(cfg *Config) *Config {
+	if cfg.Rewrites == nil || cfg.Rewrites.ByQueryParameter == nil && cfg.Rewrites.ByHTTPHeader == nil {
+		return cfg
+	}
+	allResourceAttributesNames := []string{Namespace, ApiGroup, APIVersion, Resource, Subresource, Name}
+
+	if cfg.Rewrites.ByQueryParameter != nil && cfg.Rewrites.ByHTTPHeader == nil && cfg.Rewrites.ByQueryParameter.RewriteTargets == nil {
+		cfg.Rewrites.ByQueryParameter.RewriteTargets = allResourceAttributesNames
+	} else if cfg.Rewrites.ByHTTPHeader != nil && cfg.Rewrites.ByQueryParameter == nil && cfg.Rewrites.ByHTTPHeader.RewriteTargets == nil {
+		cfg.Rewrites.ByHTTPHeader.RewriteTargets = allResourceAttributesNames
+	}
+
+	cfg.Rewrites.ByQueryParameter.rewriteTargetsSet = map[string]struct{}{}
+	for _, v := range cfg.Rewrites.ByQueryParameter.RewriteTargets {
+		cfg.Rewrites.ByQueryParameter.rewriteTargetsSet[v] = struct{}{}
+	}
+	cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet = map[string]struct{}{}
+	for _, v := range cfg.Rewrites.ByHTTPHeader.RewriteTargets {
+		cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet[v] = struct{}{}
+	}
+
+	return cfg
 }
 
 // NewAuthorizer creates an authorizer compatible with the kubelet's needs

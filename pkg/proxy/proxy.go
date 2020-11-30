@@ -154,12 +154,12 @@ func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http
 					attrs := authorizer.AttributesRecord{
 						User:            u,
 						Verb:            apiVerb,
-						Namespace:       templateWithValue(n.authzConfig.ResourceAttributes.Namespace, param),
-						APIGroup:        templateWithValue(n.authzConfig.ResourceAttributes.APIGroup, param),
-						APIVersion:      templateWithValue(n.authzConfig.ResourceAttributes.APIVersion, param),
-						Resource:        templateWithValue(n.authzConfig.ResourceAttributes.Resource, param),
-						Subresource:     templateWithValue(n.authzConfig.ResourceAttributes.Subresource, param),
-						Name:            templateWithValue(n.authzConfig.ResourceAttributes.Name, param),
+						Namespace:       templateWithValue(authz.Namespace, n.authzConfig.ResourceAttributes.Namespace, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
+						APIGroup:        templateWithValue(authz.ApiGroup, n.authzConfig.ResourceAttributes.APIGroup, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
+						APIVersion:      templateWithValue(authz.APIVersion, n.authzConfig.ResourceAttributes.APIVersion, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
+						Resource:        templateWithValue(authz.Resource, n.authzConfig.ResourceAttributes.Resource, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
+						Subresource:     templateWithValue(authz.Subresource, n.authzConfig.ResourceAttributes.Subresource, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
+						Name:            templateWithValue(authz.Name, n.authzConfig.ResourceAttributes.Name, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
 						ResourceRequest: true,
 					}
 					allAttrs = append(allAttrs, attrs)
@@ -174,12 +174,12 @@ func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http
 				attrs := authorizer.AttributesRecord{
 					User:            u,
 					Verb:            apiVerb,
-					Namespace:       templateWithValue(n.authzConfig.ResourceAttributes.Namespace, param),
-					APIGroup:        templateWithValue(n.authzConfig.ResourceAttributes.APIGroup, param),
-					APIVersion:      templateWithValue(n.authzConfig.ResourceAttributes.APIVersion, param),
-					Resource:        templateWithValue(n.authzConfig.ResourceAttributes.Resource, param),
-					Subresource:     templateWithValue(n.authzConfig.ResourceAttributes.Subresource, param),
-					Name:            templateWithValue(n.authzConfig.ResourceAttributes.Name, param),
+					Namespace:       templateWithValue(authz.Namespace, n.authzConfig.ResourceAttributes.Namespace, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
+					APIGroup:        templateWithValue(authz.ApiGroup, n.authzConfig.ResourceAttributes.APIGroup, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
+					APIVersion:      templateWithValue(authz.APIVersion, n.authzConfig.ResourceAttributes.APIVersion, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
+					Resource:        templateWithValue(authz.Resource, n.authzConfig.ResourceAttributes.Resource, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
+					Subresource:     templateWithValue(authz.Subresource, n.authzConfig.ResourceAttributes.Subresource, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
+					Name:            templateWithValue(authz.Name, n.authzConfig.ResourceAttributes.Name, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
 					ResourceRequest: true,
 				}
 				allAttrs = append(allAttrs, attrs)
@@ -266,7 +266,10 @@ func (c *Config) DeepCopy() *Config {
 	return res
 }
 
-func templateWithValue(templateString, value string) string {
+func templateWithValue(attribute, templateString, value string, rewriteTargets map[string]struct{}) string {
+	if _, ok := rewriteTargets[attribute]; !ok {
+		return templateString
+	}
 	tmpl, _ := template.New("valueTemplate").Parse(templateString)
 	out := bytes.NewBuffer(nil)
 	tmpl.Execute(out, struct{ Value string }{Value: value})
