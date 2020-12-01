@@ -97,13 +97,17 @@ func InitConfig(cfg *Config) *Config {
 		cfg.Rewrites.ByHTTPHeader.RewriteTargets = allResourceAttributesNames
 	}
 
-	cfg.Rewrites.ByQueryParameter.rewriteTargetsSet = map[string]struct{}{}
-	for _, v := range cfg.Rewrites.ByQueryParameter.RewriteTargets {
-		cfg.Rewrites.ByQueryParameter.rewriteTargetsSet[v] = struct{}{}
+	if cfg.Rewrites.ByQueryParameter != nil && cfg.Rewrites.ByQueryParameter.RewriteTargets != nil {
+		cfg.Rewrites.ByQueryParameter.rewriteTargetsSet = map[string]struct{}{}
+		for _, v := range cfg.Rewrites.ByQueryParameter.RewriteTargets {
+			cfg.Rewrites.ByQueryParameter.rewriteTargetsSet[v] = struct{}{}
+		}
 	}
-	cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet = map[string]struct{}{}
-	for _, v := range cfg.Rewrites.ByHTTPHeader.RewriteTargets {
-		cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet[v] = struct{}{}
+	if cfg.Rewrites.ByHTTPHeader != nil && cfg.Rewrites.ByHTTPHeader.RewriteTargets != nil {
+		cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet = map[string]struct{}{}
+		for _, v := range cfg.Rewrites.ByHTTPHeader.RewriteTargets {
+			cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet[v] = struct{}{}
+		}
 	}
 
 	return cfg
