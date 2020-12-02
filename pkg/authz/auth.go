@@ -27,12 +27,12 @@ import (
 )
 
 const (
-	Namespace   string = "namespace"
-	ApiGroup           = "apiGroup"
-	APIVersion         = "apiVersion"
-	Resource           = "resource"
-	Subresource        = "subresource"
-	Name               = "name"
+	AttrNamespace   string = "namespace"
+	AttrApiGroup           = "apiGroup"
+	AttrAPIVersion         = "apiVersion"
+	AttrResource           = "resource"
+	AttrSubresource        = "subresource"
+	AttrName               = "name"
 )
 
 type RewriteValueSource int
@@ -85,7 +85,7 @@ func InitConfig(cfg *Config) (*Config, error) {
 	if cfg.Rewrites == nil || cfg.Rewrites.ByQueryParameter == nil && cfg.Rewrites.ByHTTPHeader == nil {
 		return cfg, nil
 	}
-	allResourceAttributesNames := []string{Namespace, ApiGroup, APIVersion, Resource, Subresource, Name}
+	allResourceAttributesNames := []string{AttrNamespace, AttrApiGroup, AttrAPIVersion, AttrResource, AttrSubresource, AttrName}
 	// if only one of the rewrites is specified try to rewrite all attributes
 	if cfg.Rewrites.ByQueryParameter != nil && cfg.Rewrites.ByHTTPHeader == nil && cfg.Rewrites.ByQueryParameter.RewriteTargets == nil {
 		cfg.Rewrites.ByQueryParameter.RewriteTargets = allResourceAttributesNames
