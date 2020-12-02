@@ -124,6 +124,11 @@ type krpAuthorizerAttributesGetter struct {
 	authzConfig *authz.Config
 }
 
+type rewriteParameter struct {
+	value  string
+	source authz.RewriteValueSource
+}
+
 // GetRequestAttributes populates authorizer attributes for the requests to kube-rbac-proxy.
 func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http.Request) []authorizer.Attributes {
 	apiVerb := ""
@@ -144,42 +149,41 @@ func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http
 
 	if n.authzConfig.ResourceAttributes != nil {
 		if n.authzConfig.Rewrites != nil {
+			parameters := []rewriteParameter{}
 			if n.authzConfig.Rewrites.ByQueryParameter != nil && n.authzConfig.Rewrites.ByQueryParameter.Name != "" {
 				params, ok := r.URL.Query()[n.authzConfig.Rewrites.ByQueryParameter.Name]
-				if !ok {
-					return nil
-				}
-
-				for _, param := range params {
-					attrs := authorizer.AttributesRecord{
-						User:            u,
-						Verb:            apiVerb,
-						Namespace:       templateWithValue(authz.Namespace, n.authzConfig.ResourceAttributes.Namespace, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
-						APIGroup:        templateWithValue(authz.ApiGroup, n.authzConfig.ResourceAttributes.APIGroup, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
-						APIVersion:      templateWithValue(authz.APIVersion, n.authzConfig.ResourceAttributes.APIVersion, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
-						Resource:        templateWithValue(authz.Resource, n.authzConfig.ResourceAttributes.Resource, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
-						Subresource:     templateWithValue(authz.Subresource, n.authzConfig.ResourceAttributes.Subresource, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
-						Name:            templateWithValue(authz.Name, n.authzConfig.ResourceAttributes.Name, param, n.authzConfig.Rewrites.ByQueryParameter.GetRewriteTargetsSet()),
-						ResourceRequest: true,
+				if ok {
+					for _, param := range params {
+						parameters = append(parameters, rewriteParameter{value: param, source: authz.RewriteValueSourceQueryParams})
 					}
-					allAttrs = append(allAttrs, attrs)
 				}
 			}
 			if n.authzConfig.Rewrites.ByHTTPHeader != nil && n.authzConfig.Rewrites.ByHTTPHeader.Name != "" {
 				param := r.Header.Get(n.authzConfig.Rewrites.ByHTTPHeader.Name)
-				if param == "" {
-					return nil
+				if param != "" {
+					parameters = append(parameters, rewriteParameter{value: param, source: authz.RewriteValueSourceHTTPHeader})
 				}
+			}
+			if len(parameters) == 0 {
+				return nil
+			}
 
+			for _, p := range parameters {
+				rewriteTargets := []string{}
+				if p.source == authz.RewriteValueSourceQueryParams {
+					rewriteTargets = n.authzConfig.Rewrites.ByQueryParameter.RewriteTargets
+				} else if p.source == authz.RewriteValueSourceHTTPHeader {
+					rewriteTargets = n.authzConfig.Rewrites.ByHTTPHeader.RewriteTargets
+				}
 				attrs := authorizer.AttributesRecord{
 					User:            u,
 					Verb:            apiVerb,
-					Namespace:       templateWithValue(authz.Namespace, n.authzConfig.ResourceAttributes.Namespace, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
-					APIGroup:        templateWithValue(authz.ApiGroup, n.authzConfig.ResourceAttributes.APIGroup, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
-					APIVersion:      templateWithValue(authz.APIVersion, n.authzConfig.ResourceAttributes.APIVersion, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
-					Resource:        templateWithValue(authz.Resource, n.authzConfig.ResourceAttributes.Resource, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
-					Subresource:     templateWithValue(authz.Subresource, n.authzConfig.ResourceAttributes.Subresource, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
-					Name:            templateWithValue(authz.Name, n.authzConfig.ResourceAttributes.Name, param, n.authzConfig.Rewrites.ByHTTPHeader.GetRewriteTargetsSet()),
+					Namespace:       templateWithValue(authz.Namespace, n.authzConfig.ResourceAttributes.Namespace, p.value, rewriteTargets),
+					APIGroup:        templateWithValue(authz.ApiGroup, n.authzConfig.ResourceAttributes.APIGroup, p.value, rewriteTargets),
+					APIVersion:      templateWithValue(authz.APIVersion, n.authzConfig.ResourceAttributes.APIVersion, p.value, rewriteTargets),
+					Resource:        templateWithValue(authz.Resource, n.authzConfig.ResourceAttributes.Resource, p.value, rewriteTargets),
+					Subresource:     templateWithValue(authz.Subresource, n.authzConfig.ResourceAttributes.Subresource, p.value, rewriteTargets),
+					Name:            templateWithValue(authz.Name, n.authzConfig.ResourceAttributes.Name, p.value, rewriteTargets),
 					ResourceRequest: true,
 				}
 				allAttrs = append(allAttrs, attrs)
@@ -266,8 +270,14 @@ func (c *Config) DeepCopy() *Config {
 	return res
 }
 
-func templateWithValue(attribute, templateString, value string, rewriteTargets map[string]struct{}) string {
-	if _, ok := rewriteTargets[attribute]; !ok {
+func templateWithValue(attribute, templateString, value string, rewriteTargets []string) string {
+	rewrite := false
+	for _, t := range rewriteTargets {
+		if t == attribute {
+			rewrite = true
+		}
+	}
+	if !rewrite {
 		return templateString
 	}
 	tmpl, _ := template.New("valueTemplate").Parse(templateString)
