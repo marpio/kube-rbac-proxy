@@ -18,6 +18,7 @@ package authz
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -84,19 +85,20 @@ type ResourceAttributes struct {
 	Name        string `json:"name,omitempty"`
 }
 
-// InitConfig sets default config values
-func InitConfig(cfg *Config) *Config {
+// InitConfig sets default config values and validates the authorization configuration
+func InitConfig(cfg *Config) (*Config, error) {
 	if cfg.Rewrites == nil || cfg.Rewrites.ByQueryParameter == nil && cfg.Rewrites.ByHTTPHeader == nil {
-		return cfg
+		return cfg, nil
 	}
 	allResourceAttributesNames := []string{Namespace, ApiGroup, APIVersion, Resource, Subresource, Name}
-
+	// if only one of the rewrites is specified try to rewrite all attributes
 	if cfg.Rewrites.ByQueryParameter != nil && cfg.Rewrites.ByHTTPHeader == nil && cfg.Rewrites.ByQueryParameter.RewriteTargets == nil {
 		cfg.Rewrites.ByQueryParameter.RewriteTargets = allResourceAttributesNames
 	} else if cfg.Rewrites.ByHTTPHeader != nil && cfg.Rewrites.ByQueryParameter == nil && cfg.Rewrites.ByHTTPHeader.RewriteTargets == nil {
 		cfg.Rewrites.ByHTTPHeader.RewriteTargets = allResourceAttributesNames
 	}
 
+	// create a set of rewriteTargets to speed up the lookups
 	if cfg.Rewrites.ByQueryParameter != nil && cfg.Rewrites.ByQueryParameter.RewriteTargets != nil {
 		cfg.Rewrites.ByQueryParameter.rewriteTargetsSet = map[string]struct{}{}
 		for _, v := range cfg.Rewrites.ByQueryParameter.RewriteTargets {
@@ -109,8 +111,22 @@ func InitConfig(cfg *Config) *Config {
 			cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet[v] = struct{}{}
 		}
 	}
+	// check if rewriteTargets are provided and
+	if cfg.Rewrites.ByQueryParameter != nil && cfg.Rewrites.ByHTTPHeader != nil {
+		if cfg.Rewrites.ByQueryParameter.RewriteTargets == nil || cfg.Rewrites.ByHTTPHeader.RewriteTargets == nil {
+			return nil, fmt.Errorf("both query param and http header rewrites are specified but rewriteTargets are missing")
+		}
+		if len(cfg.Rewrites.ByQueryParameter.RewriteTargets) == 0 || len(cfg.Rewrites.ByHTTPHeader.RewriteTargets) == 0 {
+			return nil, fmt.Errorf("both query param and http header rewrites are specified but rewriteTargets are missing")
+		}
+		for k := range cfg.Rewrites.ByQueryParameter.rewriteTargetsSet {
+			if _, ok := cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet[k]; ok {
+				return nil, fmt.Errorf("to avoid ambiguity http header and query paramas rewriteTargets must be mutually exclusive")
+			}
+		}
+	}
 
-	return cfg
+	return cfg, nil
 }
 
 // NewAuthorizer creates an authorizer compatible with the kubelet's needs

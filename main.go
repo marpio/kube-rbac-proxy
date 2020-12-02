@@ -169,7 +169,10 @@ func main() {
 			klog.Fatalf("Failed to parse config file content: %v", err)
 		}
 
-		cfg.auth.Authorization = authz.InitConfig(configfile.AuthorizationConfig)
+		cfg.auth.Authorization, err = authz.InitConfig(configfile.AuthorizationConfig)
+		if err != nil {
+			klog.Fatalf("Invalid authorization configuration: %v", err)
+		}
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(kcfg)
