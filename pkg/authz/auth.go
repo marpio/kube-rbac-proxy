@@ -111,7 +111,7 @@ func InitConfig(cfg *Config) (*Config, error) {
 			cfg.Rewrites.ByHTTPHeader.rewriteTargetsSet[v] = struct{}{}
 		}
 	}
-	// check if rewriteTargets are provided and
+	// check if rewriteTargets are provided and mutually exclusive
 	if cfg.Rewrites.ByQueryParameter != nil && cfg.Rewrites.ByHTTPHeader != nil {
 		if cfg.Rewrites.ByQueryParameter.RewriteTargets == nil || cfg.Rewrites.ByHTTPHeader.RewriteTargets == nil {
 			return nil, fmt.Errorf("both query param and http header rewrites are specified but rewriteTargets are missing")
